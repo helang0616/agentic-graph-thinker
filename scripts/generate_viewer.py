@@ -80,6 +80,7 @@ def main():
     ::-webkit-scrollbar-track {{ background: #1e293b; }}
     ::-webkit-scrollbar-thumb {{ background: #475569; border-radius: 4px; }}
     ::-webkit-scrollbar-thumb:hover {{ background: #64748b; }}
+    .fa-chevron-down {{ transition: transform 0.2s ease; }}
   </style>
 </head>
 <body class="p-4 md:p-8 flex flex-col h-screen overflow-hidden">
@@ -120,18 +121,24 @@ def main():
 
     <!-- Right Column: Details & Artifacts -->
     <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 flex flex-col h-full overflow-hidden">
-      <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2 shrink-0">
-        <i class="fa-solid fa-folder-open text-purple-400"></i> Artifact Registry
-      </h2>
-      <div class="overflow-y-auto pr-2 space-y-3 flex-1 min-h-0" id="artifacts-container">
+      <div class="flex items-center justify-between cursor-pointer hover:bg-gray-700 rounded p-2 -m-2 mb-0" onclick="document.getElementById('artifacts-panel').classList.toggle('hidden')">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-folder-open text-purple-400"></i> Artifact Registry
+        </h2>
+        <i class="fa-solid fa-chevron-down text-gray-400" id="artifacts-chevron"></i>
+      </div>
+      <div id="artifacts-panel" class="overflow-y-auto pr-2 space-y-3 flex-1 min-h-0 transition-all duration-200">
         <!-- Artifacts injected here -->
       </div>
       
       <div class="mt-4 pt-4 border-t border-gray-700 shrink-0 h-2/5 flex flex-col min-h-0">
-        <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2 shrink-0">
-          <i class="fa-solid fa-list-check text-green-400"></i> Execution Tree
-        </h2>
-        <div class="overflow-y-auto pr-2 space-y-2 text-sm flex-1 min-h-0" id="tree-container">
+        <div class="flex items-center justify-between cursor-pointer hover:bg-gray-700 rounded p-2 -m-2 mb-0" onclick="document.getElementById('tree-panel').classList.toggle('hidden')">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-green-400"></i> Execution Tree
+          </h2>
+          <i class="fa-solid fa-chevron-down text-gray-400" id="tree-chevron"></i>
+        </div>
+        <div id="tree-panel" class="overflow-y-auto pr-2 space-y-2 text-sm flex-1 min-h-0 transition-all duration-200">
           <!-- Tree injected here -->
         </div>
       </div>
@@ -140,6 +147,26 @@ def main():
 
   <script>
     const graphData = {json_str};
+
+    // Toggle collapse with chevron rotation
+    function setupToggle(panelId, chevronId) {{
+      const panel = document.getElementById(panelId);
+      const chevron = document.getElementById(chevronId);
+      if (panel && chevron) {{
+        panel.dataset.chevron = chevronId;
+      }}
+    }}
+    
+    // Add click handlers for panel headers
+    document.querySelectorAll('.cursor-pointer').forEach(header => {{
+      header.addEventListener('click', function() {{
+        const panel = this.parentElement.querySelector('[id$="-panel"]');
+        const chevron = this.querySelector('.fa-chevron-down');
+        if (panel && chevron) {{
+          chevron.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(-90deg)';
+        }}
+      }});
+    }});
 
     function init() {{
       const state = graphData.execution_state || {{}};
@@ -161,40 +188,86 @@ def main():
             bg = '#1e293b'; border = '#334155'; // Darker for archived
         }} else if (n.status === 'resolved') {{ 
             bg = '#065f46'; border = '#10b981'; 
+        }} else if (n.status === 'failed') {{ 
+            bg = '#7f1d1d'; border = '#ef4444'; // Red for failed
         }} else if (n.status === 'in_progress') {{ 
             bg = '#78350f'; border = '#f59e0b'; 
         }}
         
         const archivedTag = n._is_archived ? " (Archived)" : "";
         
+        // Rich tooltip
+        let tip = n.description || '';
+        if (n.resolution && typeof n.resolution === "object") {{
+          tip += "\\n\\n=== Result ===\\n" + (n.resolution.summary || "");
+          if (n.resolution.context_injected) {{
+            tip += "\\n\\n=== Context ===\\n" + n.resolution.context_injected;
+          }}
+          if (n.resolution.learnings && n.resolution.learnings.length > 0) {{
+            tip += "\\n\\n=== Learnings ===\\n" + n.resolution.learnings.join("\\n");
+          }}
+        }}
+        if (n.keywords && n.keywords.length > 0) {{
+          tip += "\\n\\nKeywords: " + n.keywords.join(", ");
+        }}
+        
         return {{
           id: n.id,
           label: n.title + archivedTag,
-          title: n.description + "\\n" + (n.resolution ? "\\nResult: " + n.resolution : ""),
+          title: tip,
           color: {{ background: bg, border: border }},
-          font: {{ color: n._is_archived ? '#94a3b8' : '#f8fafc' }},
+          font: {{ color: n._is_archived ? '#94a3b8' : '#f8fafc', size: 12 }},
           shape: 'box',
-          margin: 10,
-          borderWidth: 2
+          margin: 12,
+          borderWidth: 2,
+          shadow: {{ enabled: true, color: 'rgba(0,0,0,0.3)', size: 8, x: 2, y: 2 }}
         }};
       }}));
 
-      const visEdges = new vis.DataSet(edges.map(e => ({{
-        from: e.source,
-        to: e.target,
-        label: e.relation,
-        font: {{ color: '#94a3b8', align: 'middle' }},
-        color: {{ color: '#64748b' }},
-        arrows: 'to'
-      }})));
+      const visEdges = new vis.DataSet(edges.map(e => {{
+        let edgeColor = '#94a3b8';
+        let edgeWidth = 2;
+        let labelColor = '#fbbf24';
+        if (e.relation === 'blocked_by') {{ edgeColor = '#ef4444'; labelColor = '#f87171'; edgeWidth = 2; }}
+        else if (e.relation === 'subtask_of') {{ edgeColor = '#60a5fa'; labelColor = '#93c5fd'; edgeWidth = 2; }}
+        else if (e.relation === 'consumes_output_of') {{ edgeColor = '#34d399'; labelColor = '#6ee7b7'; edgeWidth = 2; }}
+        
+        return {{
+          from: e.target,
+          to: e.source,
+          label: e.relation,
+          font: {{ 
+            color: labelColor, 
+            size: 10, 
+            face: 'monospace', 
+            background: '#1e293b',
+            strokeWidth: 2,
+            strokeColor: '#0f172a'
+          }},
+          color: {{ color: edgeColor, highlight: '#ffffff' }},
+          width: edgeWidth,
+          arrows: {{ to: {{ enabled: true, scaleFactor: 0.3 }} }},
+          smooth: {{ type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.3 }},
+          dashes: e.relation === 'blocked_by'
+        }};
+      }}));
 
       const network = new vis.Network(document.getElementById('network-container'), {{nodes: visNodes, edges: visEdges}}, {{
-        layout: {{ hierarchical: {{ direction: 'UD', sortMethod: 'directed' }} }},
-        physics: false
+        layout: {{
+          hierarchical: {{ 
+            enabled: true, 
+            direction: 'UD', 
+            sortMethod: 'directed',
+            levelSeparation: 80,
+            nodeSpacing: 150
+          }}
+        }},
+        physics: false,
+        interaction: {{ dragNodes: true, dragEdges: true, hover: true }}
       }});
 
       // Draw Artifacts
-      const artContainer = document.getElementById('artifacts-container');
+      const artContainer = document.getElementById('artifacts-panel');
       if (Object.keys(registry).length === 0) {{
         artContainer.innerHTML = '<div class="text-gray-500 text-sm italic p-4 text-center">No artifacts registered yet.</div>';
       }} else {{
@@ -216,9 +289,11 @@ def main():
       }}
 
       // Draw Tree
-      const treeContainer = document.getElementById('tree-container');
+      const treeContainer = document.getElementById('tree-panel');
       Object.values(nodes).forEach(n => {{
-        let icon = n.status === 'resolved' ? '<i class="fa-solid fa-check text-green-400"></i>' : '<i class="fa-solid fa-spinner fa-spin text-yellow-400"></i>';
+        let icon = n.status === 'resolved' ? '<i class="fa-solid fa-check text-green-400"></i>' : 
+                   n.status === 'failed' ? '<i class="fa-solid fa-xmark text-red-400"></i>' : 
+                   '<i class="fa-solid fa-spinner fa-spin text-yellow-400"></i>';
         if (n._is_archived) icon = '<i class="fa-solid fa-box-archive text-gray-500"></i>';
         
         treeContainer.innerHTML += `
@@ -227,9 +302,14 @@ def main():
               <div class="flex items-center gap-2">${{icon}} <span class="${{n._is_archived ? 'text-gray-400' : 'text-gray-200'}}">${{n.title}}</span></div>
               <div class="text-xs text-gray-500 font-mono">${{n.id}}</div>
             </summary>
-            <div class="p-3 bg-gray-800 border-t border-gray-600 text-gray-300 text-xs leading-relaxed">
-              <div class="mb-2"><span class="text-gray-500 font-bold">Desc:</span> ${{n.description}}</div>
-              ${{n.resolution ? `<div><span class="text-green-500 font-bold">Result:</span> ${{n.resolution}}</div>` : ''}}
+            <div class="p-3 bg-gray-800 border-t border-gray-600 text-gray-300 text-xs leading-relaxed space-y-2">
+              <div><span class="text-gray-500 font-bold">Desc:</span> ${{n.description}}</div>
+              ${{n.resolution && typeof n.resolution === 'object' ? `
+              <div class="border-t border-gray-700 pt-2"><span class="text-blue-400 font-bold">Summary:</span> ${{n.resolution.summary || ''}}</div>
+              <div><span class="text-purple-400 font-bold">Context Injected:</span> ${{n.resolution.context_injected || ''}}</div>
+              ${{n.resolution.validation_status ? `<div><span class="text-green-400 font-bold">Validation:</span> ${{n.resolution.validation_status}}</div>` : ''}}
+              ${{n.resolution.learnings && n.resolution.learnings.length > 0 ? `<div><span class="text-yellow-400 font-bold">Learnings:</span> <ul class="list-disc pl-4 mt-1">${{n.resolution.learnings.map(l => `<li>${{l}}</li>`).join('')}}</ul></div>` : ''}}
+              ` : (n.resolution ? `<div><span class="text-green-500 font-bold">Result:</span> ${{n.resolution}}</div>` : '')}}
             </div>
           </details>
         `;

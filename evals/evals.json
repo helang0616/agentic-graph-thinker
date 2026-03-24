@@ -4,13 +4,31 @@
     {
       "id": 1,
       "prompt": "请使用 agentic-graph-thinker 技能帮我完成这个任务：写一个 Node.js 脚本 utils.js，包含一个用于翻转字符串的 reverseString 函数。由于这是一个核心工具，接下来请创建一个 test.js 文件来测试它，确保它能正确翻转 'hello'。任务完成后，请生成 agentic_graph_viewer.html。",
-      "expected_output": "The skill should successfully create an active.json with nodes tracking the creation of utils.js and test.js, correctly set the input/output artifacts, and generate the agentic_graph_viewer.html file displaying the task hierarchy.",
+      "expected_output": "The skill should successfully create an active.json with nodes tracking the creation of utils.js and test.js, correctly set the input/output artifacts, perform self-validation (running the test), and generate the agentic_graph_viewer.html file displaying the task hierarchy. The resolution field should be an object with summary, context_injected, validation_status, learnings.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "请启动 agentic-graph-thinker 技能，策略设为 BFS。我要开发一个极其简单的本地 todo-list 网页（需要一个 index.html, 一个 style.css 和一个 app.js）。请你先规划所有需要的子节点并将它们入队列，然后再逐个执行，并在结束后生成可视化网页。",
-      "expected_output": "The skill should configure active.json with BFS strategy. It should create nodes for the html, css, and js files, enqueue them all in current_queue, process them sequentially, register their artifacts, and produce the final HTML viewer.",
+      "prompt": "请启动 agentic-graph-thinker 技能，策略设为 BFS。我要开发一个极其简单的本地 todo-list 网页（需要一个 index.html, 一个 style.css 和一个 app.js）。请你先规划所有需要的子节点并将它们入队列，然后再逐个执行，并在结束后生成可视化网页。必须包含产物的自检说明，并且你的结构化反馈对象中要能看出上下文的传递。",
+      "expected_output": "The skill should configure active.json with BFS strategy. It should create nodes for the html, css, and js files, enqueue them all in current_queue, process them sequentially, register their artifacts, fill out structured resolutions including validation_status, and produce the final HTML viewer.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "请使用 agentic-graph-thinker 技能处理一个复杂的场景：编写一个 Python 脚本 parse_data.py，读取 data.csv，然后输出 summary.txt。你在写第一版 parse_data.py 时故意引入一个未导入 csv 模块的错误（模拟阻碍），然后在执行节点中触发'动态任务拆解'，生成一个 fix_import 子节点来修复它，然后再回到主节点完成并生成产物。最后生成可视化图谱。在修复子节点中，resolution 必须包含 learnings。",
+      "expected_output": "The skill should demonstrate dynamic sub-tasking by spawning a child node to fix a deliberate error. It should use the failed/blocked status or push the child node, resolve it with a structured resolution containing learnings, and then resume and complete the parent node.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "请测试 agentic-graph-thinker 技能的新功能：1) 使用 config 命令设置 archive_threshold 为 5，auto_visualize 为 false；2) 创建3个任务并完成它们；3) 验证 GC 会自动归档已解决的任务到 archive.json；4) 使用 search 命令搜索归档中的任务。",
+      "expected_output": "The skill should: 1) Successfully update config with archive_threshold=5 and auto_visualize=false; 2) Create and resolve 3 tasks; 3) Run gc command to archive completed tasks; 4) Use search command to find tasks in archive.json.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "请演示历史检索功能：先创建几个包含不同关键词的任务（如 python,flask,api），完成后使用 search 命令搜索 'python,flask' 关键词，验证多关键词 AND 匹配功能。",
+      "expected_output": "The skill should create tasks with various keywords, resolve them, then use search command to find tasks matching both 'python' and 'flask' keywords (AND logic).",
       "files": []
     }
   ]
