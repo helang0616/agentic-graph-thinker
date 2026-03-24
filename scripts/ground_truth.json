@@ -1,0 +1,224 @@
+{
+  "version": "1.0",
+  "description": "Ground Truth dataset for task decomposition quality evaluation",
+  "ground_truth": [
+    {
+      "id": "gt_001",
+      "description": "重构用户认证模块",
+      "layer": "L2",
+      "semantic_type": "Architecture.Authentication",
+      "expected_nodes": [
+        {"id": "auth_analyze", "title": "分析现有认证代码", "type": "analysis", "layer": "L1"},
+        {"id": "auth_design", "title": "设计新架构方案", "type": "design", "layer": "L1"},
+        {"id": "auth_implement", "title": "实现新认证逻辑", "type": "implementation", "layer": "L1"},
+        {"id": "auth_test", "title": "编写测试用例", "type": "verification", "layer": "L1"},
+        {"id": "auth_migrate", "title": "迁移旧数据", "type": "migration", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "auth_design", "target": "auth_analyze", "relation": "blocked_by"},
+        {"source": "auth_implement", "target": "auth_design", "relation": "blocked_by"},
+        {"source": "auth_test", "target": "auth_implement", "relation": "subtask_of"},
+        {"source": "auth_migrate", "target": "auth_implement", "relation": "consumes_output_of"},
+        {"source": "auth_migrate", "target": "auth_analyze", "relation": "blocked_by"}
+      ],
+      "keywords": ["authentication", "refactor", "security"],
+      "quality_score": 0.95
+    },
+    {
+      "id": "gt_002",
+      "description": "修复数据库连接池泄漏",
+      "layer": "L1",
+      "semantic_type": "Database.Connection",
+      "expected_nodes": [
+        {"id": "db_identify", "title": "定位泄漏源头", "type": "analysis", "layer": "L1"},
+        {"id": "db_analyze", "title": "分析连接生命周期", "type": "analysis", "layer": "L1"},
+        {"id": "db_fix", "title": "修复连接释放逻辑", "type": "implementation", "layer": "L1"},
+        {"id": "db_test", "title": "压力测试验证", "type": "verification", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "db_analyze", "target": "db_identify", "relation": "subtask_of"},
+        {"source": "db_fix", "target": "db_analyze", "relation": "blocked_by"},
+        {"source": "db_test", "target": "db_fix", "relation": "subtask_of"}
+      ],
+      "keywords": ["database", "connection-pool", "memory-leak", "debug"],
+      "quality_score": 0.92
+    },
+    {
+      "id": "gt_003",
+      "description": "添加 REST API 缓存层",
+      "layer": "L2",
+      "semantic_type": "Architecture.Caching",
+      "expected_nodes": [
+        {"id": "cache_design", "title": "设计缓存策略", "type": "design", "layer": "L1"},
+        {"id": "cache_implement", "title": "实现缓存层", "type": "implementation", "layer": "L1"},
+        {"id": "cache_invalidate", "title": "实现缓存失效", "type": "implementation", "layer": "L1"},
+        {"id": "cache_test", "title": "测试缓存命中率", "type": "verification", "layer": "L1"},
+        {"id": "cache_doc", "title": "编写文档", "type": "documentation", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "cache_implement", "target": "cache_design", "relation": "blocked_by"},
+        {"source": "cache_invalidate", "target": "cache_implement", "relation": "subtask_of"},
+        {"source": "cache_test", "target": "cache_implement", "relation": "subtask_of"},
+        {"source": "cache_doc", "target": "cache_implement", "relation": "consumes_output_of"}
+      ],
+      "keywords": ["cache", "rest-api", "redis", "performance"],
+      "quality_score": 0.90
+    },
+    {
+      "id": "gt_004",
+      "description": "代码影响分析：修改支付模块",
+      "layer": "L1",
+      "semantic_type": "Analysis.Impact",
+      "expected_nodes": [
+        {"id": "impact_find", "title": "查找支付相关代码", "type": "analysis", "layer": "L0"},
+        {"id": "impact_deps", "title": "分析依赖关系", "type": "analysis", "layer": "L0"},
+        {"id": "impact_trace", "title": "追踪调用链", "type": "analysis", "layer": "L0"},
+        {"id": "impact_report", "title": "生成影响报告", "type": "report", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "impact_deps", "target": "impact_find", "relation": "subtask_of"},
+        {"source": "impact_trace", "target": "impact_deps", "relation": "subtask_of"},
+        {"source": "impact_report", "target": "impact_trace", "relation": "consumes_output_of"}
+      ],
+      "keywords": ["impact-analysis", "payment", "refactor", "dependencies"],
+      "quality_score": 0.88
+    },
+    {
+      "id": "gt_005",
+      "description": "从零构建微服务项目",
+      "layer": "L2",
+      "semantic_type": "Architecture.Microservice",
+      "expected_nodes": [
+        {"id": "ms_design", "title": "架构设计", "type": "design", "layer": "L2"},
+        {"id": "ms_scaffold", "title": "脚手架搭建", "type": "setup", "layer": "L1"},
+        {"id": "ms_db", "title": "数据库设计", "type": "design", "layer": "L1"},
+        {"id": "ms_api", "title": "API 定义", "type": "design", "layer": "L1"},
+        {"id": "ms_impl_crud", "title": "实现 CRUD", "type": "implementation", "layer": "L1"},
+        {"id": "ms_impl_biz", "title": "实现业务逻辑", "type": "implementation", "layer": "L1"},
+        {"id": "ms_test", "title": "单元测试", "type": "verification", "layer": "L1"},
+        {"id": "ms_docker", "title": "Docker 配置", "type": "deployment", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "ms_scaffold", "target": "ms_design", "relation": "blocked_by"},
+        {"source": "ms_db", "target": "ms_design", "relation": "blocked_by"},
+        {"source": "ms_api", "target": "ms_design", "relation": "blocked_by"},
+        {"source": "ms_impl_crud", "target": "ms_api", "relation": "blocked_by"},
+        {"source": "ms_impl_crud", "target": "ms_db", "relation": "blocked_by"},
+        {"source": "ms_impl_biz", "target": "ms_impl_crud", "relation": "subtask_of"},
+        {"source": "ms_test", "target": "ms_impl_biz", "relation": "subtask_of"},
+        {"source": "ms_docker", "target": "ms_scaffold", "relation": "subtask_of"}
+      ],
+      "keywords": ["microservice", "architecture", "boilerplate", "setup"],
+      "quality_score": 0.93
+    },
+    {
+      "id": "gt_006",
+      "description": "性能优化：API 响应时间过长",
+      "layer": "L1",
+      "semantic_type": "Performance.Optimization",
+      "expected_nodes": [
+        {"id": "perf_profile", "title": "性能分析", "type": "analysis", "layer": "L1"},
+        {"id": "perf_identify", "title": "识别瓶颈", "type": "analysis", "layer": "L1"},
+        {"id": "perf_query", "title": "优化数据库查询", "type": "implementation", "layer": "L1"},
+        {"id": "perf_cache", "title": "添加缓存", "type": "implementation", "layer": "L1"},
+        {"id": "perf_async", "title": "异步处理", "type": "implementation", "layer": "L1"},
+        {"id": "perf_verify", "title": "验证性能提升", "type": "verification", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "perf_identify", "target": "perf_profile", "relation": "subtask_of"},
+        {"source": "perf_query", "target": "perf_identify", "relation": "blocked_by"},
+        {"source": "perf_cache", "target": "perf_identify", "relation": "blocked_by"},
+        {"source": "perf_async", "target": "perf_identify", "relation": "blocked_by"},
+        {"source": "perf_verify", "target": "perf_query", "relation": "subtask_of"},
+        {"source": "perf_verify", "target": "perf_cache", "relation": "subtask_of"},
+        {"source": "perf_verify", "target": "perf_async", "relation": "subtask_of"}
+      ],
+      "keywords": ["performance", "optimization", "api", "database", "cache"],
+      "quality_score": 0.91
+    },
+    {
+      "id": "gt_007",
+      "description": "Legacy 系统代码理解",
+      "layer": "L1",
+      "semantic_type": "Analysis.Legacy",
+      "expected_nodes": [
+        {"id": "legacy_overview", "title": "项目概览", "type": "analysis", "layer": "L0"},
+        {"id": "legacy_structure", "title": "目录结构分析", "type": "analysis", "layer": "L0"},
+        {"id": "legacy_deps", "title": "依赖关系分析", "type": "analysis", "layer": "L0"},
+        {"id": "legacy_flow", "title": "核心流程追踪", "type": "analysis", "layer": "L1"},
+        {"id": "legacy_doc", "title": "生成文档", "type": "documentation", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "legacy_structure", "target": "legacy_overview", "relation": "subtask_of"},
+        {"source": "legacy_deps", "target": "legacy_structure", "relation": "subtask_of"},
+        {"source": "legacy_flow", "target": "legacy_deps", "relation": "blocked_by"},
+        {"source": "legacy_doc", "target": "legacy_flow", "relation": "consumes_output_of"}
+      ],
+      "keywords": ["legacy", "understanding", "documentation", "onboarding"],
+      "quality_score": 0.87
+    },
+    {
+      "id": "gt_008",
+      "description": "添加单元测试覆盖率",
+      "layer": "L1",
+      "semantic_type": "Testing.Coverage",
+      "expected_nodes": [
+        {"id": "cov_analyze", "title": "分析现有覆盖率", "type": "analysis", "layer": "L0"},
+        {"id": "cov_prioritize", "title": "优先排序", "type": "planning", "layer": "L1"},
+        {"id": "cov_write", "title": "编写测试", "type": "implementation", "layer": "L1"},
+        {"id": "cov_verify", "title": "验证覆盖率", "type": "verification", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "cov_prioritize", "target": "cov_analyze", "relation": "subtask_of"},
+        {"source": "cov_write", "target": "cov_prioritize", "relation": "blocked_by"},
+        {"source": "cov_verify", "target": "cov_write", "relation": "subtask_of"}
+      ],
+      "keywords": ["testing", "coverage", "unit-test", "quality"],
+      "quality_score": 0.89
+    },
+    {
+      "id": "gt_009",
+      "description": "CI/CD 流水线搭建",
+      "layer": "L2",
+      "semantic_type": "DevOps.CICD",
+      "expected_nodes": [
+        {"id": "cicd_design", "title": "设计流水线", "type": "design", "layer": "L1"},
+        {"id": "cicd_setup", "title": "配置 CI 服务器", "type": "implementation", "layer": "L1"},
+        {"id": "cicd_build", "title": "构建阶段", "type": "implementation", "layer": "L1"},
+        {"id": "cicd_test", "title": "测试阶段", "type": "implementation", "layer": "L1"},
+        {"id": "cicd_deploy", "title": "部署阶段", "type": "implementation", "layer": "L1"},
+        {"id": "cicd_notify", "title": "通知配置", "type": "implementation", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "cicd_setup", "target": "cicd_design", "relation": "blocked_by"},
+        {"source": "cicd_build", "target": "cicd_setup", "relation": "subtask_of"},
+        {"source": "cicd_test", "target": "cicd_build", "relation": "subtask_of"},
+        {"source": "cicd_deploy", "target": "cicd_test", "relation": "subtask_of"},
+        {"source": "cicd_notify", "target": "cicd_deploy", "relation": "subtask_of"}
+      ],
+      "keywords": ["ci-cd", "pipeline", "automation", "devops"],
+      "quality_score": 0.94
+    },
+    {
+      "id": "gt_010",
+      "description": "安全漏洞修复",
+      "layer": "L1",
+      "semantic_type": "Security.Fix",
+      "expected_nodes": [
+        {"id": "sec_audit", "title": "安全审计", "type": "analysis", "layer": "L0"},
+        {"id": "sec_identify", "title": "识别漏洞", "type": "analysis", "layer": "L1"},
+        {"id": "sec_fix", "title": "修复漏洞", "type": "implementation", "layer": "L1"},
+        {"id": "sec_test", "title": "安全测试", "type": "verification", "layer": "L1"},
+        {"id": "sec_doc", "title": "安全文档", "type": "documentation", "layer": "L1"}
+      ],
+      "expected_edges": [
+        {"source": "sec_identify", "target": "sec_audit", "relation": "subtask_of"},
+        {"source": "sec_fix", "target": "sec_identify", "relation": "blocked_by"},
+        {"source": "sec_test", "target": "sec_fix", "relation": "subtask_of"},
+        {"source": "sec_doc", "target": "sec_fix", "relation": "consumes_output_of"}
+      ],
+      "keywords": ["security", "vulnerability", "fix", "audit"],
+      "quality_score": 0.96
+    }
+  ]
+}

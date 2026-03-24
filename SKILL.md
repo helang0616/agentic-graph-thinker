@@ -1,6 +1,6 @@
 ---
 name: agentic-graph-thinker
-description: "当用户希望解决复杂的多步骤工程问题、调试级联错误、从零构建具有相互依赖特性的项目、进行代码影响分析、或者明确要求使用 'agentic-graph-thinker' / 可视化任务图谱 / 分析任务时，**必须立即触发此技能**，不得自行先分析或执行任务。本技能提供基于图论的深度优先 (DFS) 或广度优先 (BFS) 策略，系统性地拆解和解决任务，同时保留完整的上下文并严格追踪输入/输出产物。支持动态子任务衍生、结构化上下文闭环反馈、自检拦截及回溯机制。"
+description: "当用户希望解决复杂的多步骤工程问题、调试级联错误、从零构建具有相互依赖特性的项目、进行代码影响分析、或者明确要求使用 'agentic-graph-thinker' / 可视化任务图谱 / 分析任务时，**必须立即触发此技能**，不得自行先分析或执行任务。本技能提供基于图论的深度优先 (DFS) 或广度优先 (BFS) 策略，系统性地拆解和解决任务，同时保留完整的上下文并严格追踪输入/输出产物。支持动态子任务衍生、结构化上下文闭环反馈、自检拦截及回溯机制。**新增 v3.0：任务语义分层(L0/L1/L2)、向量语义搜索、本地 Git 版本控制、地面真实验证系统**。"
 ---
 
 # ⚠️ 重要激活规则 (CRITICAL Activation Rule)
@@ -218,3 +218,175 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/generate_viewer.py 
 （注意：如果你的当前工作目录不是项目根目录，请替换命令最后的 `.` 为你存放 `.opencode` 的项目根路径）。
 
 执行完脚本后，**告诉用户打开新生成的 `agentic_graph_viewer.html`**，他们将看到一个充满科技感的、完美处理了 CORS 并且包含暗黑模式、资产卡片和交互图谱的本地 Dashboard。Edge连线文字已优化为始终水平/易读状态。
+
+---
+
+# HSCM 增强功能 (v3.0)
+
+本技能已集成 Hierarchical Semantic Codebase Model (HSCM) 的核心概念，提供以下增强功能：
+
+## 1. 任务语义分层 (L0/L1/L2)
+
+借鉴 HSCM 的多层架构，任务节点现在支持分层表示：
+
+| 层级 | 说明 | 示例 |
+|------|------|------|
+| **L0** | 原始任务层 | 用户原始输入的问题描述 |
+| **L1** | 语义意图层 | Service.Authentication, Database.QueryOptimization |
+| **L2** | 执行策略层 | 具体的技术实现路径 |
+
+**创建分层任务：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py create \
+  --id "task_001" --title "修复登录" \
+  --layer "L1" --semantic-type "Service.Authentication" \
+  --abstraction-path "AuthModule,LoginHandler" \
+  --stack
+```
+
+## 2. 向量语义搜索
+
+使用本地 `sentence-transformers` 模型进行语义相似度搜索，替代简单的关键词匹配：
+
+**安装依赖：**
+```bash
+pip install sentence-transformers numpy
+```
+
+**语义搜索命令：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py semantic-search \
+  --query "如何实现用户认证流程" --top-k 5
+
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py semantic-search \
+  --query "数据库性能优化" --json
+```
+
+**重建向量索引：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/embedding_manager.py --rebuild
+```
+
+## 3. 产物版本控制 (Git 集成)
+
+借鉴 HSCM 的版本控制引擎，AKG 快照与 Git 提交关联：
+
+**创建快照：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py snapshot \
+  --message "完成用户认证模块"
+```
+
+**列出快照：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py snapshots --limit 10
+```
+
+**检出历史状态：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py checkout \
+  --snapshot "abc12345_20240325_143000.json" --preview
+
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py checkout \
+  --snapshot "abc12345_20240325_143000.json"
+```
+
+**存储位置：** `.opencode/agentic-graph/versions/`
+
+## 4. 地面真实验证系统
+
+借鉴 HSCM 的 Ground Truth Validation System，自动评估任务分解质量：
+
+**运行基准测试：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py benchmark
+```
+
+**评估指标：**
+- Node Precision/Recall: 节点识别准确率
+- Edge Precision/Recall: 边关系识别准确率
+- F1-Score: 综合质量评分
+
+**内置标准数据集：** 10 个高质量任务拆解示例（ground_truth.json），涵盖：
+- 代码重构 (gt_001)
+- 调试修复 (gt_002)
+- 新功能开发 (gt_003, gt_005)
+- 影响分析 (gt_004)
+- 性能优化 (gt_006)
+- Legacy 系统理解 (gt_007)
+- 测试覆盖 (gt_008)
+- CI/CD 搭建 (gt_009)
+- 安全修复 (gt_010)
+
+**添加自定义标准：**
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py add-gt \
+  --description "新任务描述" \
+  --expected-nodes '[{"id":"t1","type":"analysis"}]' \
+  --expected-edges '[{"source":"t2","target":"t1","relation":"subtask_of"}]' \
+  --keywords "keyword1,keyword2"
+```
+
+---
+
+## 数据结构变更 (v3.0)
+
+`active.json` 新增字段：
+
+```json
+{
+  "version": "3.0",
+  "version_control": {
+    "enabled": true,
+    "git_commit": "abc12345",
+    "last_snapshot": "abc12345_20240325_143000.json"
+  },
+  "knowledge_graph": {
+    "nodes": {
+      "task_001": {
+        "layer": "L1",
+        "semantic_type": "Service.Authentication",
+        "abstraction_path": ["AuthModule", "LoginHandler"],
+        ...
+      }
+    }
+  }
+}
+```
+
+---
+
+## 完整 CLI 命令参考
+
+### 基础命令
+```bash
+# 创建节点
+graph_cli.py create --id "task_001" --title "标题" --description "描述" --keywords "k1,k2" --stack
+
+# 完成任务
+graph_cli.py resolve --id "task_001" --status "resolved" --summary "摘要" --context_injected "上下文" --learnings "经验" --stack
+
+# 注册产物
+graph_cli.py register --path "file.py" --description "描述" --task-id "task_001"
+
+# 搜索
+graph_cli.py search --keywords "python,flask" --json
+```
+
+### 增强命令
+```bash
+# 分层任务
+graph_cli.py create --layer "L1" --semantic-type "Service.Auth" --abstraction-path "A,B" ...
+
+# 向量搜索
+graph_cli.py semantic-search --query "自然语言查询" --top-k 5
+
+# 版本控制
+graph_cli.py snapshot --message "描述"
+graph_cli.py snapshots --limit 10
+graph_cli.py checkout --snapshot "文件名"
+
+# 验证系统
+graph_cli.py benchmark
+graph_cli.py add-gt --description "描述" --expected-nodes "JSON" --expected-edges "JSON" --keywords "k1"
+```

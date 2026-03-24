@@ -2,17 +2,27 @@ import json
 import os
 import sys
 import argparse
+import subprocess
 from datetime import datetime
+from pathlib import Path
 
 GRAPH_DIR = ".opencode/agentic-graph"
 ACTIVE_FILE = os.path.join(GRAPH_DIR, "active.json")
 ARCHIVE_FILE = os.path.join(GRAPH_DIR, "archive.json")
+EMBED_DIR = os.path.join(GRAPH_DIR, "embeddings")
+VERSIONS_DIR = os.path.join(GRAPH_DIR, "versions")
+GROUND_TRUTH_FILE = os.path.join(GRAPH_DIR, "ground_truth.json")
+
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 def load_active():
     if os.path.exists(ACTIVE_FILE):
         with open(ACTIVE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"version": "2.1", "execution_state": {"config": {"strategy": "DFS", "max_depth": 5, "archive_threshold": 30, "auto_visualize": True}, "current_stack": [], "current_queue": []}, "knowledge_graph": {"nodes": {}, "edges": [], "artifact_registry": {}}}
+            data = json.load(f)
+            if "version" not in data:
+                data["version"] = "3.0"
+            return data
+    return {"version": "3.0", "execution_state": {"config": {"strategy": "DFS", "max_depth": 5, "archive_threshold": 30, "auto_visualize": True, "embedding_enabled": False}, "current_stack": [], "current_queue": []}, "knowledge_graph": {"nodes": {}, "edges": [], "artifact_registry": {}}, "version_control": {"enabled": True, "git_commit": None}}
 
 def save_active(data):
     os.makedirs(GRAPH_DIR, exist_ok=True)
@@ -23,7 +33,7 @@ def load_archive():
     if os.path.exists(ARCHIVE_FILE):
         with open(ARCHIVE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"version": "2.1", "knowledge_graph": {"nodes": {}, "edges": [], "artifact_registry": {}}}
+    return {"version": "3.0", "knowledge_graph": {"nodes": {}, "edges": [], "artifact_registry": {}}}
 
 def save_archive(data):
     os.makedirs(GRAPH_DIR, exist_ok=True)
@@ -33,15 +43,19 @@ def save_archive(data):
 def create_node(args):
     data = load_active()
     node_id = args.id
-    data["knowledge_graph"]["nodes"][node_id] = {
+    node = {
         "id": node_id,
         "title": args.title,
         "description": args.description,
         "keywords": args.keywords.split(",") if args.keywords else [],
         "status": args.status,
         "resolution": None,
-        "artifacts": {"inputs": [], "outputs": []}
+        "artifacts": {"inputs": [], "outputs": []},
+        "layer": getattr(args, "layer", "L0"),
+        "semantic_type": getattr(args, "semantic_type", ""),
+        "abstraction_path": getattr(args, "abstraction_path", "").split(",") if getattr(args, "abstraction_path", "") else []
     }
+    data["knowledge_graph"]["nodes"][node_id] = node
     if args.relation and args.target:
         data["knowledge_graph"]["edges"].append({
             "source": node_id,
@@ -53,7 +67,7 @@ def create_node(args):
     if args.queue:
         data["execution_state"]["current_queue"].append(node_id)
     save_active(data)
-    print(f"Created node: {node_id}")
+    print(f"Created node: {node_id} (Layer: {node['layer']})")
 
 def resolve_node(args):
     data = load_active()
@@ -200,8 +214,200 @@ def search_nodes(args):
     
     print_results(results, args.json)
 
+def get_git_commit():
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, cwd="."
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()[:8]
+    except Exception:
+        pass
+    return None
+
+def ensure_dirs():
+    os.makedirs(GRAPH_DIR, exist_ok=True)
+    os.makedirs(EMBED_DIR, exist_ok=True)
+    os.makedirs(VERSIONS_DIR, exist_ok=True)
+
+def load_ground_truth():
+    if os.path.exists(GROUND_TRUTH_FILE):
+        with open(GROUND_TRUTH_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"ground_truth": []}
+
+def save_ground_truth(data):
+    with open(GROUND_TRUTH_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def semantic_search_nodes(args):
+    try:
+        from sentence_transformers import SentenceTransformer
+        import numpy as np
+    except ImportError:
+        print("Error: sentence-transformers not installed. Run: pip install sentence-transformers")
+        return
+    
+    model = SentenceTransformer(EMBEDDING_MODEL)
+    query_embedding = model.encode(args.query)
+    
+    active_data = load_active()
+    archive_data = load_archive()
+    
+    results = {"active": [], "archive": []}
+    
+    def search_in_nodes(nodes, source):
+        scored = []
+        for node_id, node in nodes.items():
+            text = f"{node.get('title', '')} {node.get('description', '')} {' '.join(node.get('keywords', []))}"
+            if node.get('layer') == "L1" and node.get('semantic_type'):
+                text += f" {node.get('semantic_type')}"
+            node_emb = model.encode(text)
+            sim = float(np.dot(query_embedding, node_emb) / (np.linalg.norm(query_embedding) * np.linalg.norm(node_emb)))
+            scored.append((sim, node_id, node))
+        
+        scored.sort(reverse=True)
+        for sim, node_id, node in scored[:args.top_k]:
+            formatted = format_node(node)
+            formatted["similarity"] = round(sim, 4)
+            results[source].append(formatted)
+    
+    search_in_nodes(active_data.get("knowledge_graph", {}).get("nodes", {}), "active")
+    search_in_nodes(archive_data.get("knowledge_graph", {}).get("nodes", {}), "archive")
+    
+    print_results(results, args.json)
+
+def create_akg_snapshot(args):
+    ensure_dirs()
+    commit_hash = get_git_commit() or "no-git"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    snapshot_name = f"{commit_hash}_{timestamp}.json"
+    snapshot_path = os.path.join(VERSIONS_DIR, snapshot_name)
+    
+    active_data = load_active()
+    snapshot = {
+        "commit": commit_hash,
+        "timestamp": datetime.now().isoformat(),
+        "data": active_data
+    }
+    
+    with open(snapshot_path, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, ensure_ascii=False)
+    
+    print(f"Created AKG snapshot: {snapshot_name}")
+    
+    data = load_active()
+    data["version_control"] = {
+        "enabled": True,
+        "git_commit": commit_hash,
+        "last_snapshot": snapshot_name
+    }
+    save_active(data)
+    print(f"Linked to git commit: {commit_hash}")
+
+def list_snapshots(args):
+    if not os.path.exists(VERSIONS_DIR):
+        print("No snapshots found")
+        return
+    
+    snapshots = sorted(Path(VERSIONS_DIR).glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    print(f"\n=== AKG Snapshots ({len(snapshots)} total) ===")
+    for sp in snapshots[:args.limit]:
+        with open(sp, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        commit = data.get("commit", "unknown")
+        ts = data.get("timestamp", "")
+        node_count = len(data.get("data", {}).get("knowledge_graph", {}).get("nodes", {}))
+        print(f"  {sp.name} | Commit: {commit} | Nodes: {node_count} | {ts}")
+
+def checkout_snapshot(args):
+    snapshot_path = os.path.join(VERSIONS_DIR, args.snapshot)
+    if not os.path.exists(snapshot_path):
+        print(f"Snapshot not found: {args.snapshot}")
+        return
+    
+    with open(snapshot_path, "r", encoding="utf-8") as f:
+        snapshot = json.load(f)
+    
+    if args.preview:
+        print(f"Preview of {args.snapshot}:")
+        print(f"  Commit: {snapshot.get('commit')}")
+        print(f"  Timestamp: {snapshot.get('timestamp')}")
+        print(f"  Nodes: {len(snapshot.get('data', {}).get('knowledge_graph', {}).get('nodes', {}))}")
+        return
+    
+    save_active(snapshot["data"])
+    print(f"Checked out snapshot: {args.snapshot}")
+
+def add_ground_truth(args):
+    data = load_ground_truth()
+    new_entry = {
+        "id": f"gt_{len(data['ground_truth']) + 1:03d}",
+        "description": args.description,
+        "expected_nodes": json.loads(args.expected_nodes) if isinstance(args.expected_nodes, str) else args.expected_nodes,
+        "expected_edges": json.loads(args.expected_edges) if isinstance(args.expected_edges, str) else args.expected_edges,
+        "keywords": args.keywords.split(","),
+        "quality_score": 1.0
+    }
+    data["ground_truth"].append(new_entry)
+    save_ground_truth(data)
+    print(f"Added ground truth: {new_entry['id']}")
+
+def benchmark_evaluation(args):
+    data = load_ground_truth()
+    gt_list = data.get("ground_truth", [])
+    
+    if not gt_list:
+        print("No ground truth data. Add examples first.")
+        return
+    
+    active_data = load_active()
+    active_nodes = active_data.get("knowledge_graph", {}).get("nodes", {})
+    active_edges = active_data.get("knowledge_graph", {}).get("edges", [])
+    
+    metrics = {"node_precision": [], "node_recall": [], "edge_precision": [], "edge_recall": []}
+    
+    for gt in gt_list:
+        expected_nodes = {n["id"] for n in gt.get("expected_nodes", [])}
+        actual_nodes = set(active_nodes.keys())
+        
+        tp_nodes = expected_nodes & actual_nodes
+        fp_nodes = actual_nodes - expected_nodes
+        fn_nodes = expected_nodes - actual_nodes
+        
+        prec = len(tp_nodes) / (len(tp_nodes) + len(fp_nodes)) if (len(tp_nodes) + len(fp_nodes)) > 0 else 0
+        rec = len(tp_nodes) / (len(tp_nodes) + len(fn_nodes)) if (len(tp_nodes) + len(fn_nodes)) > 0 else 0
+        
+        metrics["node_precision"].append(prec)
+        metrics["node_recall"].append(rec)
+        
+        expected_edges = {(e["source"], e["target"], e["relation"]) for e in gt.get("expected_edges", [])}
+        actual_edges = {(e["source"], e["target"], e["relation"]) for e in active_edges}
+        
+        tp_edges = expected_edges & actual_edges
+        fp_edges = actual_edges - expected_edges
+        fn_edges = expected_edges - actual_edges
+        
+        e_prec = len(tp_edges) / (len(tp_edges) + len(fp_edges)) if (len(tp_edges) + len(fp_edges)) > 0 else 0
+        e_rec = len(tp_edges) / (len(tp_edges) + len(fn_edges)) if (len(tp_edges) + len(fn_edges)) > 0 else 0
+        
+        metrics["edge_precision"].append(e_prec)
+        metrics["edge_recall"].append(e_rec)
+    
+    print("\n=== Benchmark Results ===")
+    print(f"Node Precision: {sum(metrics['node_precision'])/len(metrics['node_precision']):.2%}")
+    print(f"Node Recall:    {sum(metrics['node_recall'])/len(metrics['node_recall']):.2%}")
+    print(f"Edge Precision: {sum(metrics['edge_precision'])/len(metrics['edge_precision']):.2%}")
+    print(f"Edge Recall:    {sum(metrics['edge_recall'])/len(metrics['edge_recall']):.2%}")
+    
+    f1_node = 2 * (sum(metrics['node_precision'])/len(metrics['node_precision'])) * (sum(metrics['node_recall'])/len(metrics['node_recall'])) / \
+              ((sum(metrics['node_precision'])/len(metrics['node_precision'])) + (sum(metrics['node_recall'])/len(metrics['node_recall']))) if \
+              ((sum(metrics['node_precision'])/len(metrics['node_precision'])) + (sum(metrics['node_recall'])/len(metrics['node_recall']))) > 0 else 0
+    print(f"Node F1-Score: {f1_node:.2%}")
+
 def main():
-    parser = argparse.ArgumentParser(description="Agentic Graph CLI")
+    parser = argparse.ArgumentParser(description="Agentic Graph CLI (v3.0 Enhanced)")
     subparsers = parser.add_subparsers()
     
     p_create = subparsers.add_parser("create")
@@ -214,6 +420,9 @@ def main():
     p_create.add_argument("--target", default="")
     p_create.add_argument("--stack", action="store_true")
     p_create.add_argument("--queue", action="store_true")
+    p_create.add_argument("--layer", default="L0", choices=["L0", "L1", "L2"])
+    p_create.add_argument("--semantic-type", default="")
+    p_create.add_argument("--abstraction-path", default="")
     p_create.set_defaults(func=create_node)
     
     p_resolve = subparsers.add_parser("resolve")
@@ -252,6 +461,35 @@ def main():
     p_search.add_argument("--only-archive", action="store_true", help="仅搜索 archive.json")
     p_search.add_argument("--json", action="store_true", help="JSON 格式输出")
     p_search.set_defaults(func=search_nodes)
+    
+    p_semantic = subparsers.add_parser("semantic-search")
+    p_semantic.add_argument("--query", required=True, help="自然语言查询")
+    p_semantic.add_argument("--top-k", type=int, default=5, help="返回结果数量")
+    p_semantic.add_argument("--json", action="store_true", help="JSON 格式输出")
+    p_semantic.set_defaults(func=semantic_search_nodes)
+    
+    p_snapshot = subparsers.add_parser("snapshot")
+    p_snapshot.add_argument("--message", default="", help="快照描述")
+    p_snapshot.set_defaults(func=create_akg_snapshot)
+    
+    p_snapshots = subparsers.add_parser("snapshots")
+    p_snapshots.add_argument("--limit", type=int, default=10, help="显示数量")
+    p_snapshots.set_defaults(func=list_snapshots)
+    
+    p_checkout = subparsers.add_parser("checkout")
+    p_checkout.add_argument("--snapshot", required=True, help="快照文件名")
+    p_checkout.add_argument("--preview", action="store_true", help="仅预览")
+    p_checkout.set_defaults(func=checkout_snapshot)
+    
+    p_gt = subparsers.add_parser("add-gt")
+    p_gt.add_argument("--description", required=True, help="任务描述")
+    p_gt.add_argument("--expected-nodes", required=True, help="预期节点 JSON 数组")
+    p_gt.add_argument("--expected-edges", required=True, help="预期边 JSON 数组")
+    p_gt.add_argument("--keywords", default="", help="关键词")
+    p_gt.set_defaults(func=add_ground_truth)
+    
+    p_benchmark = subparsers.add_parser("benchmark")
+    p_benchmark.set_defaults(func=benchmark_evaluation)
     
     args = parser.parse_args()
     if hasattr(args, "func"):
