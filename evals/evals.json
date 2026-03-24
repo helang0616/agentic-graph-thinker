@@ -1,0 +1,17 @@
+{
+  "skill_name": "agentic-graph-thinker",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "请使用 agentic-graph-thinker 技能帮我完成这个任务：写一个 Node.js 脚本 utils.js，包含一个用于翻转字符串的 reverseString 函数。由于这是一个核心工具，接下来请创建一个 test.js 文件来测试它，确保它能正确翻转 'hello'。任务完成后，请生成 agentic_graph_viewer.html。",
+      "expected_output": "The skill should successfully create an active.json with nodes tracking the creation of utils.js and test.js, correctly set the input/output artifacts, and generate the agentic_graph_viewer.html file displaying the task hierarchy.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "请启动 agentic-graph-thinker 技能，策略设为 BFS。我要开发一个极其简单的本地 todo-list 网页（需要一个 index.html, 一个 style.css 和一个 app.js）。请你先规划所有需要的子节点并将它们入队列，然后再逐个执行，并在结束后生成可视化网页。",
+      "expected_output": "The skill should configure active.json with BFS strategy. It should create nodes for the html, css, and js files, enqueue them all in current_queue, process them sequentially, register their artifacts, and produce the final HTML viewer.",
+      "files": []
+    }
+  ]
+}
