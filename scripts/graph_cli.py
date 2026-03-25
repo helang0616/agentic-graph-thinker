@@ -13,7 +13,10 @@ EMBED_DIR = os.path.join(GRAPH_DIR, "embeddings")
 VERSIONS_DIR = os.path.join(GRAPH_DIR, "versions")
 GROUND_TRUTH_FILE = os.path.join(GRAPH_DIR, "ground_truth.json")
 
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SKILL_DIR = os.path.dirname(SCRIPT_DIR)
+LOCAL_MODEL_PATH = os.path.join(SKILL_DIR, "models", "models--sentence-transformers--all-MiniLM-L6-v2")
+EMBEDDING_MODEL = LOCAL_MODEL_PATH if os.path.exists(LOCAL_MODEL_PATH) else "sentence-transformers/all-MiniLM-L6-v2"
 
 def load_active():
     if os.path.exists(ACTIVE_FILE):
@@ -406,6 +409,62 @@ def benchmark_evaluation(args):
               ((sum(metrics['node_precision'])/len(metrics['node_precision'])) + (sum(metrics['node_recall'])/len(metrics['node_recall']))) > 0 else 0
     print(f"Node F1-Score: {f1_node:.2%}")
 
+def check_changes(args):
+    changes_path = os.path.join(GRAPH_DIR, "pending_changes.json")
+    
+    # 检查 pending_changes.json 中的记录
+    recorded_changes = []
+    if os.path.exists(changes_path):
+        with open(changes_path, "r", encoding="utf-8") as f:
+            changes = json.load(f)
+        recorded_changes = changes.get("pending", [])
+    
+    print(f"\n=== Pending Changes ({len(recorded_changes)}) ===")
+    for c in recorded_changes:
+        print(f"  [{c.get('type', 'unknown')}] {c.get('node_id', '?')} - {c.get('timestamp', '')}")
+        if args.details:
+            print(f"    Details: {c.get('details', {})}")
+    
+    # 检测新创建的 pending 节点（用户通过 Dashboard 创建但未记录到 pending_changes）
+    active_data = load_active()
+    recorded_ids = {c.get('node_id') for c in recorded_changes}
+    unprocessed = []
+    for node_id, node in active_data.get("knowledge_graph", {}).get("nodes", {}).items():
+        if node.get("status") == "pending" and node.get("resolution") is None:
+            if node_id not in recorded_ids:
+                unprocessed.append({"id": node_id, "title": node.get("title", ""), "description": node.get("description", "")})
+    
+    if unprocessed:
+        print(f"\n=== Unprocessed Pending Nodes ({len(unprocessed)}) ===")
+        print("（这些节点可能是用户通过 Dashboard 新创建的）")
+        for n in unprocessed:
+            print(f"  - {n['id']}: {n['title']}")
+            if args.details:
+                print(f"    Description: {n['description']}")
+    
+    if args.clear:
+        save_changes_data = {"pending": [], "last_check": datetime.now().isoformat()}
+        with open(changes_path, "w", encoding="utf-8") as f:
+            json.dump(save_changes_data, f, indent=2)
+        print("\nChanges cleared")
+
+def watch_mode(args):
+    print(f"Watching for changes every {args.interval}s... (Ctrl+C to stop)")
+    import time
+    last_count = 0
+    while True:
+        changes_path = os.path.join(GRAPH_DIR, "pending_changes.json")
+        if os.path.exists(changes_path):
+            with open(changes_path, "r", encoding="utf-8") as f:
+                changes = json.load(f)
+            count = len(changes.get("pending", []))
+            if count > last_count:
+                print(f"\n[CHANGE DETECTED] {count} pending change(s)")
+                for c in changes.get("pending", [])[last_count:]:
+                    print(f"  - {c.get('type')}: {c.get('node_id')}")
+            last_count = count
+        time.sleep(args.interval)
+
 def main():
     parser = argparse.ArgumentParser(description="Agentic Graph CLI (v3.0 Enhanced)")
     subparsers = parser.add_subparsers()
@@ -490,6 +549,15 @@ def main():
     
     p_benchmark = subparsers.add_parser("benchmark")
     p_benchmark.set_defaults(func=benchmark_evaluation)
+    
+    p_changes = subparsers.add_parser("check-changes")
+    p_changes.add_argument("--details", action="store_true", help="显示详细信息")
+    p_changes.add_argument("--clear", action="store_true", help="清除变更记录")
+    p_changes.set_defaults(func=check_changes)
+    
+    p_watch = subparsers.add_parser("watch")
+    p_watch.add_argument("--interval", type=int, default=3, help="检查间隔(秒)")
+    p_watch.set_defaults(func=watch_mode)
     
     args = parser.parse_args()
     if hasattr(args, "func"):

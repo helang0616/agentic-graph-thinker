@@ -3,11 +3,27 @@ name: agentic-graph-thinker
 description: "当用户希望解决复杂的多步骤工程问题、调试级联错误、从零构建具有相互依赖特性的项目、进行代码影响分析、或者明确要求使用 'agentic-graph-thinker' / 可视化任务图谱 / 分析任务时，**必须立即触发此技能**，不得自行先分析或执行任务。本技能提供基于图论的深度优先 (DFS) 或广度优先 (BFS) 策略，系统性地拆解和解决任务，同时保留完整的上下文并严格追踪输入/输出产物。支持动态子任务衍生、结构化上下文闭环反馈、自检拦截及回溯机制。**新增 v3.0：任务语义分层(L0/L1/L2)、向量语义搜索、本地 Git 版本控制、地面真实验证系统**。"
 ---
 
+# 依赖安装 (Prerequisites)
+
+```bash
+# 基础依赖
+pip install flask
+
+# 向量语义搜索依赖（模型已内置在技能目录下）
+pip install sentence-transformers numpy
+```
+
+> **注意**：语义搜索模型已包含在技能目录 `models/` 下，首次运行无需下载。如模型缺失，可从 HuggingFace 自动下载：
+> `sentence-transformers/all-MiniLM-L6-v2`（约 90MB）
+
+---
+
 # ⚠️ 重要激活规则 (CRITICAL Activation Rule)
 **你必须在此技能被触发后，立即执行以下步骤，不得跳过或自行先分析任务：**
 1. 初始化状态文件（创建 active.json 和 archive.json）
-2. 使用 CLI 创建根任务节点并入栈
-3. 立即开始任务拆解和执行
+2. **立即启动 Dashboard 服务器**（新窗口，不阻塞）
+3. 使用 CLI 创建根任务节点并入栈
+4. 立即开始任务拆解和执行
 
 **禁止行为**：在激活此技能后，任何形式的"先自己分析一下"、"让我先看看代码"都是不允许的。你必须立即使用图谱管理方式开始工作。
 
@@ -51,7 +67,7 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
 
 ```json
 {
-  "version": "2.1",
+  "version": "3.0",
   "execution_state": {
     "config": {
       "strategy": "DFS",          // "DFS" or "BFS"
@@ -106,7 +122,7 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
 
 ```json
 {
-  "version": "2.1",
+  "version": "3.0",
   "knowledge_graph": {
     "nodes": {},
     "edges": [],
@@ -120,6 +136,13 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
 
 ## 第一步：初始化与参数化 (Initialize & Parameterize) - **立即执行，不得跳过**
 - **立即**读取或创建 `active.json` 和 `archive.json`（如果不存在）。
+- **立即启动 Dashboard 服务器**（新窗口，不阻塞），让用户实时查看任务状态：
+  ```bash
+  python .config/opencode/skills/agentic-graph-thinker/scripts/start_dashboard.py --port 5555
+  ```
+  启动后告知用户访问 **http://localhost:5555** 查看实时任务状态。
+  
+  > 注意：如遇 502 错误，请在浏览器直接访问（设置 no_proxy 或关闭代理）。
 - **立即**使用 CLI 创建根任务节点并入栈：
   ```bash
   python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py create --id "task_001" --title "根任务标题" --description "用户的原始任务描述" --keywords "关键词" --status "in_progress" --stack
@@ -134,6 +157,11 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
 
 ## 第二步：检索与去重 (Search & Deduplicate - 记忆提取)
 在开始**任何**新子任务之前：
+- **自动检测用户创建的节点**：执行以下命令检查用户在 Dashboard 新增的任务：
+  ```bash
+  python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes --details
+  ```
+  如果有 pending 节点（用户创建的），必须**自动**创建子任务执行，无需询问用户。
 - 提取当前任务/问题的关键词（keywords）。
 - 使用 `search` 命令查找相似的历史任务：
   ```bash
@@ -206,18 +234,104 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
   2. 将上述内容**完整地粘贴/追加**到 `archive.json`（冷存储区）的 `knowledge_graph` 中。
 - **留痕处理**：在 `active.json` 中留下一条简短的总结节点或摘要（例如添加一个虚节点记录：“早期关于数据库配置和 Nginx 代理相关的 10 个节点已归档，详细信息和产物路径见 archive.json”），以保留高维度的记忆痕迹，确保未来在第二步（Search & Deduplicate）时，你有线索去 `archive.json` 翻找历史记录。
 
-# HTML 可视化协议 (Visualization Protocol) - 任务完成后必须执行
-**在每个任务完成后，你必须生成可视化图谱。** 这是强制要求，不可跳过！
+# 实时可视化 Dashboard
 
-## 生成方式 (CRITICAL)：
-你**绝对不能**尝试自己手写 HTML 文件！
-**立即执行**以下 Bash 命令来生成 Dashboard：
+技能执行时，Dashboard 服务器**必须保持运行**，用户可通过 http://localhost:5555 实时查看：
+- 任务节点创建/完成
+- 任务依赖关系
+- 栈/队列状态变化
+- AI 与用户的交互记录
+
+**Dashboard 在技能激活时立即启动，任务执行过程中持续运行。**
+
+### 方式二：使用快捷启动脚本（推荐）
 ```bash
-python .config/opencode/skills/agentic-graph-thinker/scripts/generate_viewer.py .
+# 在项目目录运行，自动在新窗口启动服务器
+python .config/opencode/skills/agentic-graph-thinker/scripts/start_dashboard.py .
 ```
-（注意：如果你的当前工作目录不是项目根目录，请替换命令最后的 `.` 为你存放 `.opencode` 的项目根路径）。
+或指定端口：
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/start_dashboard.py . --port 5555
+```
 
-执行完脚本后，**告诉用户打开新生成的 `agentic_graph_viewer.html`**，他们将看到一个充满科技感的、完美处理了 CORS 并且包含暗黑模式、资产卡片和交互图谱的本地 Dashboard。Edge连线文字已优化为始终水平/易读状态。
+### 方式三：直接运行 generate_viewer.py
+需要安装 Flask:
+```bash
+pip install flask
+```
+在项目目录运行：
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/generate_viewer.py . --server --port 5555
+```
+
+**重要**：技能被触发时，**必须**先启动 API 服务器，确保用户可以实时看到任务变化。
+
+## AI 自动启动服务器
+
+在技能执行开始时，使用以下命令启动服务器（新窗口，不阻塞）：
+```bash
+python .config/opencode/skills/agentic-graph-thinker/scripts/start_dashboard.py --port 5555
+```
+
+此命令会自动使用当前工作目录作为项目目录，并在新窗口启动服务器。
+
+**启动后告知用户访问 http://localhost:5555 查看实时任务状态。**
+
+## 网页功能
+
+### 1. 节点操作
+- **Add Node**: 点击 "Add Node" 按钮创建新任务
+- **Edit Node**: 选中节点后点击 "Edit" 按钮修改
+- **Cancel Node**: 选中节点后点击 "Cancel" 取消任务
+
+### 2. AI Monitor 开关
+- 启用后，当检测到数据变化时会显示通知
+- AI 可通过 check-changes 命令获取用户变更
+
+### 3. 实时统计
+- 显示当前策略、活跃任务、已解决任务、栈/队列状态
+- 显示待处理变更数量
+
+## AI 变动检测与响应
+
+用户在 Dashboard 上的操作（创建/编辑/取消节点）会记录到 `pending_changes.json`。
+
+**AI 必须定期检测用户变更并响应：**
+
+```bash
+# 定期检测用户变更（建议每完成一个子任务后执行）
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes
+
+# 查看详情（包括未处理的pending节点）
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes --details
+```
+
+**响应流程：**
+1. 执行 `check-changes` 检测用户变更
+2. 系统会显示：
+   - Pending Changes：用户在 Dashboard 创建/编辑的节点
+   - Unprocessed Pending Nodes：用户创建但尚未被 AI 处理的节点
+3. 读取新节点的描述和关键词
+4. 决定是否要将该节点纳入当前任务流程
+5. 如果需要执行，创建子任务并入栈
+
+---
+
+## AI 变动检测命令
+
+```bash
+# 查看用户变更
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes
+
+# 查看详情
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes --details
+
+# 查看后清除记录
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py check-changes --clear
+
+# 持续监控模式
+python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py watch --interval 5
+```
 
 ---
 
@@ -265,6 +379,9 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py semant
 **重建向量索引：**
 ```bash
 python .config/opencode/skills/agentic-graph-thinker/scripts/embedding_manager.py --rebuild
+```
+
+> **注意**：首次运行会自动下载模型（约 90MB），需要网络连接。Windows 用户建议设置 `HF_TOKEN` 环境变量以加速下载。
 ```
 
 ## 3. 产物版本控制 (Git 集成)

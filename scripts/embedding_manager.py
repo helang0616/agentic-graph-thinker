@@ -11,7 +11,11 @@ GRAPH_DIR = ".opencode/agentic-graph"
 EMBED_DIR = os.path.join(GRAPH_DIR, "embeddings")
 EMBED_CACHE = os.path.join(EMBED_DIR, "cache.json")
 
-DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SKILL_DIR = os.path.dirname(SCRIPT_DIR)
+LOCAL_MODEL_PATH = os.path.join(SKILL_DIR, "models", "models--sentence-transformers--all-MiniLM-L6-v2")
+
+DEFAULT_MODEL = LOCAL_MODEL_PATH if os.path.exists(LOCAL_MODEL_PATH) else "sentence-transformers/all-MiniLM-L6-v2"
 
 class EmbeddingManager:
     def __init__(self, model_name=DEFAULT_MODEL):
@@ -21,7 +25,7 @@ class EmbeddingManager:
     
     def _load_cache(self):
         if os.path.exists(EMBED_CACHE):
-            with open(EMBED_CACHE, "r") as f:
+            with open(EMBED_CACHE, encoding="utf-8") as f:
                 return json.load(f)
         return {"nodes": {}, "last_update": None}
     
@@ -113,7 +117,7 @@ def main():
     
     active_file = os.path.join(GRAPH_DIR, "active.json")
     if os.path.exists(active_file):
-        with open(active_file) as f:
+        with open(active_file, encoding="utf-8") as f:
             data = json.load(f)
         nodes = data.get("knowledge_graph", {}).get("nodes", {})
         manager.rebuild_index(nodes, force=args.rebuild)
