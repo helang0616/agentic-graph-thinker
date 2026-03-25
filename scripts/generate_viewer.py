@@ -601,7 +601,30 @@ def generate_html(workspace="."):
             <div class="flex gap-2 mt-2">
               <span class="px-2 py-0.5 bg-gray-600 rounded text-xs">${{n.layer || 'L0'}}</span>
               ${{n.semantic_type ? `<span class="px-2 py-0.5 bg-blue-900 rounded text-xs text-blue-300">${{n.semantic_type}}</span>` : ''}}
+              ${{n.resolution ? `<span class="px-2 py-0.5 bg-purple-900 rounded text-xs text-purple-300">${{n.resolution.timestamp ? new Date(n.resolution.timestamp).toLocaleString() : ''}}</span>` : ''}}
             </div>
+            ${{n.resolution ? `
+            <div class="mt-2 pt-2 border-t border-gray-600">
+              ${{n.resolution.summary ? `
+              <div class="text-yellow-400 text-xs font-medium">Summary:</div>
+              <div class="text-gray-300 text-xs mt-1">${{n.resolution.summary}}</div>
+              ` : ''}}
+              ${{n.resolution.context_injected ? `
+              <div class="text-blue-400 text-xs font-medium mt-1">Context:</div>
+              <div class="text-gray-300 text-xs mt-1">${{n.resolution.context_injected}}</div>
+              ` : ''}}
+              ${{n.resolution.learnings && n.resolution.learnings.length > 0 ? `
+              <div class="text-green-400 text-xs font-medium mt-1">Learnings:</div>
+              <div class="flex flex-wrap gap-1 mt-1">
+                ${{n.resolution.learnings.map(l => `<span class="px-1.5 py-0.5 bg-green-900/50 text-green-300 rounded text-xs">${{l}}</span>`).join('')}}
+              </div>
+              ` : ''}}
+              ${{n.resolution.validation_status ? `
+              <div class="text-orange-400 text-xs font-medium mt-1">Validation:</div>
+              <div class="text-gray-300 text-xs mt-1">${{n.resolution.validation_status}}</div>
+              ` : ''}}
+            </div>
+            ` : ''}}
             ${{outputs.length > 0 ? `
             <div class="mt-2 pt-2 border-t border-gray-600">
               <div class="text-green-400 text-xs font-medium">Outputs:</div>

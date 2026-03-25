@@ -211,7 +211,7 @@ python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py search
 - **成功 (resolved)**: 状态改为 `resolved`。将所有 `outputs` 的相对路径及其清晰描述注册到 `artifact_registry` 中：
   ```bash
   # 先完成任务填写反馈并出栈
-  python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py resolve --id "task_xxx" --status "resolved" --summary "执行摘要" --context_injected "交付说明" --learnings "学到的经验" --outputs "file1.py,file2.js" --stack
+  python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py resolve --id "task_xxx" --status "resolved" --summary "执行摘要" --context_injected "交付说明" --learnings "经验1|经验2" --validation_status "测试通过" --inputs "file1.py" --outputs "file2.js" --stack
   
   # 再注册产物
   python .config/opencode/skills/agentic-graph-thinker/scripts/graph_cli.py register --path "file1.py" --description "描述" --task-id "task_xxx"
